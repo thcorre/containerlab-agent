@@ -265,12 +265,14 @@
                 isRecording = true;
                 micBtn.classList.add('recording', 'bg-red-600');
                 micBtn.classList.remove('bg-cl-blue');
+                micBtn.disabled = false; // Re-enable to allow stopping
             };
 
             recognition.onend = () => {
                 isRecording = false;
                 micBtn.classList.remove('recording', 'bg-red-600');
                 micBtn.classList.add('bg-cl-blue');
+                micBtn.disabled = false;
             };
 
             recognition.onerror = (event) => {
@@ -280,16 +282,19 @@
                 } else {
                     addMessage('system', `Voice error: ${event.error}`);
                 }
+                 micBtn.disabled = false;
             };
 
             micBtn.addEventListener('click', () => {
                 if (isRecording) {
                     recognition.stop();
                 } else {
+                    micBtn.disabled = true; // Disable button immediately to prevent double-clicks
                     try {
                         recognition.start();
                     } catch (e) {
-                         addMessage('system', 'Could not start voice recognition. It may already be active.');
+                         addMessage('system', 'Could not start voice recognition. It may already be active or starting.');
+                         micBtn.disabled = false;
                     }
                 }
             });
