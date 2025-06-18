@@ -248,24 +248,34 @@
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (SpeechRecognition) {
             recognition = new SpeechRecognition();
-            recognition.continuous = false;
+            recognition.continuous = true; // Keep listening
             recognition.lang = 'en-US';
             recognition.interimResults = true;
             recognition.maxAlternatives = 1;
+            
+            let final_transcript = '';
 
             recognition.onresult = (event) => {
-                const transcript = Array.from(event.results)
-                    .map(result => result[0])
-                    .map(result => result.transcript)
-                    .join('');
-                messageInput.value = transcript;
+                let interim_transcript = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        final_transcript += event.results[i][0].transcript;
+                    } else {
+                        interim_transcript += event.results[i][0].transcript;
+                    }
+                }
+                messageInput.value = final_transcript + interim_transcript;
+                const inputEvent = new Event('input', { bubbles: true });
+                messageInput.dispatchEvent(inputEvent);
             };
 
             recognition.onstart = () => {
                 isRecording = true;
+                final_transcript = '';
+                messageInput.value = '';
                 micBtn.classList.add('recording', 'bg-red-600');
                 micBtn.classList.remove('bg-cl-blue');
-                micBtn.disabled = false; // Re-enable to allow stopping
+                micBtn.disabled = false;
             };
 
             recognition.onend = () => {
@@ -273,6 +283,9 @@
                 micBtn.classList.remove('recording', 'bg-red-600');
                 micBtn.classList.add('bg-cl-blue');
                 micBtn.disabled = false;
+                 if (messageInput.value.trim()){
+                    chatForm.requestSubmit();
+                }
             };
 
             recognition.onerror = (event) => {
@@ -289,7 +302,7 @@
                 if (isRecording) {
                     recognition.stop();
                 } else {
-                    micBtn.disabled = true; // Disable button immediately to prevent double-clicks
+                    micBtn.disabled = true;
                     try {
                         recognition.start();
                     } catch (e) {
