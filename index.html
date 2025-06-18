@@ -248,7 +248,7 @@
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (SpeechRecognition) {
             recognition = new SpeechRecognition();
-            recognition.continuous = true; // Keep listening
+            recognition.continuous = true;
             recognition.lang = 'en-US';
             recognition.interimResults = true;
             recognition.maxAlternatives = 1;
@@ -271,8 +271,8 @@
 
             recognition.onstart = () => {
                 isRecording = true;
-                final_transcript = '';
-                messageInput.value = '';
+                final_transcript = ''; // Reset transcript on new start
+                messageInput.value = ''; // Clear the input box
                 micBtn.classList.add('recording', 'bg-red-600');
                 micBtn.classList.remove('bg-cl-blue');
                 micBtn.disabled = false;
@@ -284,6 +284,7 @@
                 micBtn.classList.add('bg-cl-blue');
                 micBtn.disabled = false;
                  if (messageInput.value.trim()){
+                    // Automatically submit the form when the user stops talking
                     chatForm.requestSubmit();
                 }
             };
@@ -292,17 +293,23 @@
                 console.error("Speech recognition error", event.error);
                 if (event.error === 'not-allowed') {
                     addMessage('system', "Microphone access denied by the browser or the environment's security policy. Please check the site settings in your address bar to allow microphone access.");
-                } else {
+                } else if (event.error === 'no-speech') {
+                     addMessage('system', 'No speech was detected. Please try again.');
+                }
+                else {
                     addMessage('system', `Voice error: ${event.error}`);
                 }
-                 micBtn.disabled = false;
+                isRecording = false; // Ensure recording state is reset on error
+                micBtn.disabled = false;
+                micBtn.classList.remove('recording', 'bg-red-600');
+                micBtn.classList.add('bg-cl-blue');
             };
 
             micBtn.addEventListener('click', () => {
                 if (isRecording) {
                     recognition.stop();
                 } else {
-                    micBtn.disabled = true;
+                    micBtn.disabled = true; // Disable button to prevent multiple clicks while starting
                     try {
                         recognition.start();
                     } catch (e) {
