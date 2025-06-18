@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Containerlab Agent</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        #chat-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        #chat-container::-webkit-scrollbar-track {
+            background: #2d3748; /* gray-800 */
+        }
+        #chat-container::-webkit-scrollbar-thumb {
+            background: #4a5568; /* gray-600 */
+            border-radius: 4px;
+        }
+        #chat-container::-webkit-scrollbar-thumb:hover {
+            background: #718096; /* gray-500 */
+        }
+        .message-bubble {
+            transition: all 0.3s ease;
+        }
+        .dot-flashing {
+            position: relative;
+            width: 10px;
+            height: 10px;
+            border-radius: 5px;
+            background-color: #90cdf4; /* blue-300 */
+            color: #90cdf4;
+            animation: dotFlashing 1s infinite linear alternate;
+            animation-delay: .5s;
+        }
+        .dot-flashing::before, .dot-flashing::after {
+            content: '';
+            display: inline-block;
+            position: absolute;
+            top: 0;
+        }
+        .dot-flashing::before {
+            left: -15px;
+            width: 10px;
+            height: 10px;
+            border-radius: 5px;
+            background-color: #90cdf4;
+            color: #90cdf4;
+            animation: dotFlashing 1s infinite alternate;
+            animation-delay: 0s;
+        }
+        .dot-flashing::after {
+            left: 15px;
+            width: 10px;
+            height: 10px;
+            border-radius: 5px;
+            background-color: #90cdf4;
+            color: #90cdf4;
+            animation: dotFlashing 1s infinite alternate;
+            animation-delay: 1s;
+        }
+        @keyframes dotFlashing {
+            0% {
+                background-color: #90cdf4;
+            }
+            50%,
+            100% {
+                background-color: #e2e8f0; /* gray-200 */
+            }
+        }
+        /* Modal styles */
+        .modal-overlay {
+            transition: opacity 0.3s ease;
+        }
+        :root {
+            --cl-blue: #00b4d8;
+        }
+        #mic-btn.recording {
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            }
+        }
+    </style>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              'cl-blue': '#00b4d8',
+              'cl-dark': '#181a1b',
+              'cl-dark-panel': '#252a2d',
+            }
+          }
+        }
+      }
+    </script>
+</head>
+<body class="bg-cl-dark flex flex-col md:flex-row h-screen antialiased text-gray-200">
+
+    <!-- Control Panel -->
+    <div class="w-full md:w-96 bg-cl-dark-panel flex flex-col p-6 overflow-y-auto">
+        <div class="flex items-center space-x-3 mb-6">
+            <svg class="w-10 h-10 text-cl-blue" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9.75 6.75h16.5a1.5 1.5 0 001.5-1.5V6.75a1.5 1.5 0 00-1.5-1.5H3.75a1.5 1.5 0 00-1.5 1.5v10.5a1.5 1.5 0 001.5 1.5z" />
+            </svg>
+            <h1 class="text-xl font-bold text-gray-100">Containerlab Agent</h1>
+        </div>
+        
+        <div class="space-y-4">
+             <!-- Connection Settings -->
+            <div class="border-t border-gray-700 pt-4">
+                 <h3 class="text-lg font-semibold text-gray-200 mb-2">Connection Settings</h3>
+                <div>
+                    <label for="websocket-url" class="block text-sm font-medium text-gray-400 mb-1">Agent WebSocket URL</label>
+                    <input type="text" id="websocket-url" value="wss://192.168.15.128:8765" class="w-full p-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:ring-cl-blue focus:border-cl-blue text-gray-200">
+                </div>
+                 <div>
+                    <label for="ssh-login" class="block text-sm font-medium text-gray-400 mb-1">Login</label>
+                    <input type="text" id="ssh-login" placeholder="e.g., admin" class="w-full p-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:ring-cl-blue focus:border-cl-blue text-gray-200">
+                </div>
+                <div>
+                    <label for="ssh-password" class="block text-sm font-medium text-gray-400 mb-1">Password</label>
+                    <input type="password" id="ssh-password" class="w-full p-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:ring-cl-blue focus:border-cl-blue text-gray-200">
+                </div>
+                <button id="connect-btn" class="w-full mt-2 bg-cl-blue text-white font-semibold py-2 px-4 rounded-md hover:bg-cyan-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-cl-blue transition duration-150 ease-in-out">
+                    Connect
+                </button>
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mt-2 mb-1">Connection Status</label>
+                    <div class="flex items-center">
+                        <div id="status-light" class="w-4 h-4 rounded-full bg-red-500 inline-block mr-2"></div>
+                        <span id="status-text" class="text-gray-400">Disconnected</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LLM Configuration -->
+            <div class="border-t border-gray-700 pt-4">
+                <h3 class="text-lg font-semibold text-gray-200 mb-2">LLM Configuration</h3>
+                <div>
+                    <label for="llm-model-select" class="block text-sm font-medium text-gray-400 mb-1">Select Model</label>
+                    <select id="llm-model-select" class="w-full p-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:ring-cl-blue focus:border-cl-blue text-gray-200">
+                        <option value="gemini">Gemini 2.5 Flash</option>
+                        <option value="openai">OpenAI GPT-4o mini</option>
+                        <option value="claude">Claude Haiku 3.5</option>
+                    </select>
+                </div>
+                <div id="openai-key-container" class="hidden mt-2">
+                    <label for="openai-api-key" class="block text-sm font-medium text-gray-400 mb-1">OpenAI API Key</label>
+                    <input type="password" id="openai-api-key" placeholder="sk-..." class="w-full p-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:ring-cl-blue focus:border-cl-blue text-gray-200">
+                </div>
+                <div id="claude-key-container" class="hidden mt-2">
+                    <label for="claude-api-key" class="block text-sm font-medium text-gray-400 mb-1">Anthropic API Key</label>
+                    <input type="password" id="claude-api-key" placeholder="sk-ant-..." class="w-full p-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm focus:ring-cl-blue focus:border-cl-blue text-gray-200">
+                </div>
+            </div>
+
+             <div class="border-t border-gray-700 pt-4 space-y-3">
+                <h3 class="text-lg font-semibold text-gray-200 mb-2">How this works</h3>
+                 <p class="text-sm text-gray-400">
+                    1. Direct command: <br>`execute '&lt;command&gt;' on server`
+                </p>
+                 <p class="text-sm text-gray-400">
+                    2. Deploy from GitHub:<br> `deploy a lab based on <URL_to_file>`
+                </p>
+                <p class="text-sm text-gray-400">
+                    3. For other tasks, the selected LLM will interpret your request.
+                </p>
+            </div>
+        </div>
+
+        <div class="text-xs text-gray-500 text-center mt-4">
+            Inspired by <a href="https://containerlab.dev" target="_blank" class="hover:text-cl-blue">containerlab.dev</a>
+        </div>
+    </div>
+
+    <!-- Main Chat Area -->
+    <div class="flex-grow flex flex-col bg-cl-dark h-full">
+        <div id="chat-container" class="flex-grow p-6 overflow-y-auto">
+            <!-- Messages will be appended here -->
+            <div class="message-bubble self-start bg-cl-dark-panel rounded-xl shadow-md p-4 max-w-lg">
+                <p class="font-semibold text-cl-blue">Containerlab Agent</p>
+                <p class="text-gray-300">Welcome to the Containerlab Agent. Provide your server details and credentials, then tell me what you'd like to build.</p>
+            </div>
+        </div>
+        
+        <!-- Input Form -->
+        <div class="bg-cl-dark-panel border-t border-gray-700 p-4">
+            <form id="chat-form" class="flex items-center space-x-3">
+                <textarea id="message-input" placeholder="Type your message or click the mic to speak..." class="flex-grow p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-cl-blue resize-none" rows="1"></textarea>
+                <button type="button" id="mic-btn" title="Start/Stop voice input" class="bg-cl-blue text-white p-3 rounded-full hover:bg-cyan-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-cl-dark-panel focus:ring-cl-blue transition-colors duration-200">
+                    <svg id="mic-icon" class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 0 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+                    </svg>
+                </button>
+            </form>
+        </div>
+    </div>
+    
+<!-- The python server script in comments does not need to change for this feature -->
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- Element Selectors ---
+        const connectBtn = document.getElementById('connect-btn');
+        const statusLight = document.getElementById('status-light');
+        const statusText = document.getElementById('status-text');
+        const websocketUrlInput = document.getElementById('websocket-url');
+        const sshLoginInput = document.getElementById('ssh-login');
+        const sshPasswordInput = document.getElementById('ssh-password');
+
+        const chatContainer = document.getElementById('chat-container');
+        const chatForm = document.getElementById('chat-form');
+        const messageInput = document.getElementById('message-input');
+        
+        const llmModelSelect = document.getElementById('llm-model-select');
+        const openAIKeyContainer = document.getElementById('openai-key-container');
+        const claudeKeyContainer = document.getElementById('claude-key-container');
+        const openAIApiKeyInput = document.getElementById('openai-api-key');
+        const claudeApiKeyInput = document.getElementById('claude-api-key');
+        
+        const micBtn = document.getElementById('mic-btn');
+
+        // --- State Variables ---
+        let socket = null;
+        let chatHistory = [];
+        let taskQueue = [];
+        let isExecutingPlan = false;
+        let streamCounter = 0;
+        let currentTask = null;
+        let isRecording = false;
+        let recognition;
+
+        // --- Web Speech API Setup ---
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.lang = 'en-US';
+            recognition.interimResults = true;
+            recognition.maxAlternatives = 1;
+
+            recognition.onresult = (event) => {
+                const transcript = Array.from(event.results)
+                    .map(result => result[0])
+                    .map(result => result.transcript)
+                    .join('');
+                messageInput.value = transcript;
+            };
+
+            recognition.onstart = () => {
+                isRecording = true;
+                micBtn.classList.add('recording', 'bg-red-600');
+                micBtn.classList.remove('bg-cl-blue');
+            };
+
+            recognition.onend = () => {
+                isRecording = false;
+                micBtn.classList.remove('recording', 'bg-red-600');
+                micBtn.classList.add('bg-cl-blue');
+            };
+
+            recognition.onerror = (event) => {
+                console.error("Speech recognition error", event.error);
+                if (event.error === 'not-allowed') {
+                    addMessage('system', "Microphone access denied by the browser or the environment's security policy. Please check the site settings in your address bar to allow microphone access.");
+                } else {
+                    addMessage('system', `Voice error: ${event.error}`);
+                }
+            };
+
+            micBtn.addEventListener('click', () => {
+                if (isRecording) {
+                    recognition.stop();
+                } else {
+                    try {
+                        recognition.start();
+                    } catch (e) {
+                         addMessage('system', 'Could not start voice recognition. It may already be active.');
+                    }
+                }
+            });
+
+        } else {
+            console.log("Speech Recognition not supported in this browser.");
+            micBtn.style.display = 'none';
+        }
+        
+        // --- Event Listeners ---
+        messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                chatForm.requestSubmit();
+            }
+        });
+        
+        messageInput.addEventListener('input', () => {
+            messageInput.style.height = 'auto';
+            messageInput.style.height = (messageInput.scrollHeight) + 'px';
+        });
+
+        connectBtn.addEventListener('click', () => {
+             if (!socket || socket.readyState === WebSocket.CLOSED) connect();
+             else disconnect();
+        });
+
+        llmModelSelect.addEventListener('change', () => {
+            const selectedModel = llmModelSelect.value;
+            openAIKeyContainer.classList.toggle('hidden', selectedModel !== 'openai');
+            claudeKeyContainer.classList.toggle('hidden', selectedModel !== 'claude');
+        });
+        
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userMessage = messageInput.value.trim();
+            if (!userMessage) return;
+
+            addMessage('user', userMessage);
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+
+            // --- Client-side command parsing ---
+            const gitDeployRegex = /deploy a lab based on\s+['"]?(https:\/\/github\.com\/([^/]+\/[^/]+)\/(?:blob|tree)\/[^/]+\/(.+))['"]?/i;
+            const executeRegex = /^execute\s+['"](.+)['"]\s+on server/i;
+            const statusRegex = /^can you show the lab status/i;
+            
+            const gitMatch = userMessage.match(gitDeployRegex);
+            const executeMatch = userMessage.match(executeRegex);
+            const statusMatch = userMessage.match(statusRegex);
+
+
+            if (gitMatch) {
+                const userAndRepo = gitMatch[2];
+                const filePath = gitMatch[3];
+                const repoUrl = `https://github.com/${userAndRepo}.git`;
+                const repoName = userAndRepo.split('/')[1];
+                const tasks = [
+                    { tool: "execute_command", command: `git clone ${repoUrl}` },
+                    { tool: "execute_command", command: `clab deploy -t ${repoName}/${filePath}` }
+                ];
+                executePlan(tasks);
+                return; 
+            }
+
+            if (executeMatch) {
+                const commandToExecute = executeMatch[1];
+                const task = { tool: "execute_command", command: commandToExecute };
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    addMessage('agent', `Ok, directly executing your command.`);
+                    sendCommand(task);
+                } else {
+                    addMessage('agent', `I have the command \`${commandToExecute}\`, but I'm not connected.`);
+                }
+                return;
+            }
+
+            if (statusMatch) {
+                const task = { tool: "execute_command", command: "clab inspect -a" };
+                 if (socket && socket.readyState === WebSocket.OPEN) {
+                    addMessage('agent', `Ok, getting the lab status for you.`);
+                    sendCommand(task);
+                } else {
+                    addMessage('agent', `I need to run 'clab inspect -a', but I'm not connected.`);
+                }
+                return;
+            }
+            
+            // --- Default to LLM if no client-side command matches ---
+            showTypingIndicator();
+            try {
+                const llmResponse = await getLlmToolResponse(userMessage);
+                const command = parseLlmResponse(llmResponse);
+
+                if (command.tasks && Array.isArray(command.tasks)) {
+                    executePlan(command.tasks);
+                } else if (command.tool === 'final_answer') {
+                    addMessage('agent', command.text);
+                } else if (command.tool) {
+                     if (socket && socket.readyState === WebSocket.OPEN) {
+                        addMessage('agent', `Ok, I will perform the action: \`${command.tool}\`.`);
+                        sendCommand(command);
+                    } else {
+                        addMessage('agent', `I have a command \`${command.tool}\`, but I'm not connected.`);
+                    }
+                } else {
+                    addMessage('agent', "I wasn't sure how to interpret that. Please try rephrasing.");
+                }
+
+            } catch (error) {
+                console.error('Error processing command:', error);
+                addMessage('agent', `Sorry, I encountered an error: ${error.message}`);
+            } finally {
+                hideTypingIndicator();
+            }
+        });
+        
+        // --- Main Functions ---
+
+        function sendCommand(command) {
+            addMessage('system', `Sending command: ${JSON.stringify(command, null, 2)}`);
+            socket.send(JSON.stringify(command));
+        }
+
+        function connect() {
+            if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
+            
+            const wsUrl = websocketUrlInput.value;
+            const login = sshLoginInput.value;
+            const password = sshPasswordInput.value;
+
+            if (!login || !password) {
+                addMessage('system', 'Please enter your login and password.');
+                return;
+            }
+             if (!wsUrl) {
+                addMessage('system', 'Please enter a WebSocket URL.');
+                return;
+            }
+
+
+            addMessage('system', `Connecting to local agent at ${wsUrl}...`);
+            socket = new WebSocket(wsUrl);
+
+            socket.onopen = () => {
+                console.log('WebSocket connection established. Sending auth...');
+                const authPayload = {
+                    type: 'auth',
+                    login: login,
+                    password: password
+                };
+                socket.send(JSON.stringify(authPayload));
+            };
+
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                
+                // Handle authentication response first
+                if (data.type === 'auth_response') {
+                    if (data.status === 'success') {
+                        console.log('Authentication successful.');
+                        statusLight.className = 'w-4 h-4 rounded-full bg-green-500 inline-block mr-2';
+                        statusText.textContent = 'Connected & Authenticated';
+                        connectBtn.textContent = 'Disconnect';
+                        connectBtn.classList.replace('bg-cl-blue', 'bg-red-600');
+                        connectBtn.classList.replace('hover:bg-cyan-600', 'hover:bg-red-700');
+                        addMessage('system', data.message);
+                    } else {
+                        console.log('Authentication failed.');
+                        addMessage('system', `Authentication Failed: ${data.message}`);
+                        socket.close();
+                    }
+                    return;
+                }
+
+                // Handle streaming messages
+                if (data.type && data.type.startsWith('stream')) {
+                    handleStreamMessage(data);
+                    
+                    if (isExecutingPlan && data.type === 'stream_end') {
+                        const isGitCloneAlreadyExistsError = 
+                            currentTask && 
+                            currentTask.command.includes('git clone') && 
+                            data.code === 128;
+
+                        if (data.code === 0 || isGitCloneAlreadyExistsError) {
+                            if (isGitCloneAlreadyExistsError) {
+                                addMessage('system', 'Repository already exists. Applying --reconfigure flag.');
+                                // Modify the next task in the queue if it's a clab deploy command
+                                if(taskQueue.length > 0 && taskQueue[0].command.includes('clab deploy')) {
+                                    taskQueue[0].command += ' --reconfigure';
+                                }
+                            }
+                            executeNextTask();
+                        } else {
+                             addMessage('agent', `Plan stopped due to an error in the previous step (Exit Code: ${data.code}).`);
+                             isExecutingPlan = false;
+                             taskQueue = [];
+                             currentTask = null;
+                        }
+                    }
+                    return;
+                }
+                
+                // --- Handle simple, non-streaming responses ---
+                console.log('Received from local agent:', data);
+                let messageText = data.message || JSON.stringify(data);
+
+                if (data.status === 'success') {
+                    addMessage('system', `Agent: ${messageText}`);
+                    if (isExecutingPlan) {
+                         executeNextTask();
+                    }
+                } else {
+                    addMessage('agent', `Agent error: ${messageText}`);
+                    isExecutingPlan = false; 
+                    taskQueue = [];
+                }
+            };
+
+            socket.onerror = (error) => {
+                addMessage('system', 'Connection to local agent failed. Make sure the server script is running and the URL is correct.');
+                disconnect();
+            };
+
+            socket.onclose = () => {
+                disconnect();
+            };
+        }
+        
+        function handleStreamMessage(data) {
+            let streamId = 'stream-output-' + streamCounter;
+            let streamContainer = document.getElementById(streamId);
+        
+            if (data.type === 'stream_start') {
+                streamCounter++;
+                streamId = 'stream-output-' + streamCounter; 
+                const wrapper = document.createElement('div');
+                wrapper.className = 'message-bubble self-start bg-gray-900 text-white rounded-xl shadow-md p-4 max-w-full lg:max-w-4xl w-full my-4';
+                wrapper.innerHTML = `
+                    <p class="font-semibold text-cl-blue mb-2">Agent Output</p>
+                    <p class="text-sm text-gray-400 mb-2 font-mono break-all">Running: ${data.command}</p>
+                    <pre id="${streamId}" class="text-sm font-mono whitespace-pre-wrap break-all bg-black p-3 rounded-md max-h-96 overflow-y-auto"></pre>
+                `;
+                chatContainer.appendChild(wrapper);
+                streamContainer = document.getElementById(streamId);
+            }
+        
+            if (!streamContainer) {
+                 const allStreams = document.querySelectorAll('[id^=stream-output]');
+                 streamContainer = allStreams[allStreams.length - 1];
+                 if(!streamContainer) return;
+            }
+        
+            if (data.type === 'stream_data') {
+                if(data.data === "") return;
+                const line = document.createElement('div');
+                const text = data.data;
+                line.textContent = text;
+                
+                // New color logic
+                if (text.includes('INFO')) {
+                    line.className = 'text-orange-400';
+                } else if (data.source === 'stderr') {
+                     line.className = 'text-red-400';
+                } else {
+                    line.className = 'text-green-400';
+                }
+
+                streamContainer.appendChild(line);
+                streamContainer.scrollTop = streamContainer.scrollHeight;
+            }
+        
+            if (data.type === 'stream_end') {
+                const endMessage = document.createElement('div');
+                const isSuccess = data.code === 0;
+                endMessage.className = `font-semibold mt-2 ${isSuccess ? 'text-green-400' : 'text-yellow-400'}`;
+                endMessage.textContent = `--- ${data.message} ---`;
+                streamContainer.parentElement.appendChild(endMessage);
+            }
+            
+            if (data.type === 'stream_error') {
+                const errorMessage = document.createElement('div');
+                errorMessage.className = 'font-semibold mt-2 text-red-500';
+                errorMessage.textContent = `--- ERROR: ${data.message} ---`;
+                streamContainer.parentElement.appendChild(errorMessage);
+            }
+            
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function disconnect() {
+            if (socket) socket.close();
+            statusLight.className = 'w-4 h-4 rounded-full bg-red-500 inline-block mr-2';
+            statusText.textContent = 'Disconnected';
+            connectBtn.textContent = 'Connect';
+            connectBtn.classList.replace('bg-red-600', 'bg-cl-blue');
+            connectBtn.classList.replace('hover:bg-red-700', 'hover:bg-cyan-600');
+            socket = null;
+            isExecutingPlan = false;
+            taskQueue = [];
+            currentTask = null;
+        }
+
+        function executePlan(tasks) {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                addMessage('agent', "I have a plan, but I'm not connected. Please connect and authenticate first.");
+                return;
+            }
+            taskQueue = tasks;
+            isExecutingPlan = true;
+            addMessage('agent', `I've devised a ${tasks.length}-step plan to achieve this. Starting now.`);
+            executeNextTask();
+        }
+
+        function executeNextTask() {
+            if (taskQueue.length > 0) {
+                currentTask = taskQueue.shift();
+                sendCommand(currentTask);
+            } else {
+                isExecutingPlan = false;
+                currentTask = null;
+                addMessage('agent', 'Plan completed successfully!');
+            }
+        }
+        
+        async function getLlmToolResponse(userMessage) {
+            chatHistory.push({ role: "user", parts: [{ text: userMessage }] });
+
+            const systemPrompt = `You are an AI assistant for Containerlab. Your goal is to translate a user's request into a specific JSON command for deploying network labs. You have two ways to respond:
+
+            1.  For simple, single-action requests, respond with a single JSON object.
+            2.  For complex, multi-action requests, respond with a JSON object containing a "tasks" array, where each element is a single-action command object.
+
+            Available tools:
+            -   "write_text": To create a containerlab topology file. Use the "filename" parameter (e.g., "lab.clab.yml"). The "text" should be the YAML content.
+            -   "execute_command": To deploy the lab (e.g., "containerlab deploy -t lab.clab.yml") or run other shell commands.
+            -   "final_answer": For conversational responses or explaining concepts.
+
+            Analyze the request and respond ONLY with the appropriate JSON structure.`;
+            const llmText = await callLlmApi(systemPrompt, chatHistory);
+            chatHistory.push({ role: "model", parts: [{ text: llmText }] });
+            return llmText;
+        }
+
+        async function callLlmApi(systemPrompt, currentChatHistory) {
+            const selectedModel = llmModelSelect.value;
+            let apiUrl = '';
+            let headers = {};
+            let body = {};
+            let apiKey = '';
+
+            // --- Configure for selected model ---
+            switch (selectedModel) {
+                case 'gemini':
+                    apiKey = ""; // Handled by environment
+                    apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+                    headers = { 'Content-Type': 'application/json' };
+                    body = {
+                        contents: [
+                            { role: "user", parts: [{ text: systemPrompt }] },
+                            { role: "model", parts: [{ text: "Okay, I understand. I will respond as instructed in JSON format for Containerlab." }] },
+                            ...currentChatHistory
+                        ],
+                    };
+                    break;
+
+                case 'openai':
+                    apiKey = openAIApiKeyInput.value;
+                    if (!apiKey) throw new Error("OpenAI API key is missing.");
+                    apiUrl = 'https://api.openai.com/v1/chat/completions';
+                    headers = {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    };
+                    body = {
+                        model: "gpt-4o-mini",
+                        messages: [
+                            { role: "system", content: systemPrompt },
+                            ...currentChatHistory.map(h => ({ role: h.role === 'model' ? 'assistant' : 'user', content: h.parts[0].text }))
+                        ]
+                    };
+                    break;
+                
+                case 'claude':
+                    apiKey = claudeApiKeyInput.value;
+                    if (!apiKey) throw new Error("Anthropic API key is missing.");
+                    apiUrl = 'https://api.anthropic.com/v1/messages';
+                    headers = {
+                        'x-api-key': apiKey,
+                        'anthropic-version': '2023-06-01',
+                        'content-type': 'application/json'
+                    };
+                     body = {
+                        model: "claude-3-haiku-20240307",
+                        max_tokens: 1024,
+                        system: systemPrompt,
+                        messages: currentChatHistory.map(h => ({ role: h.role === 'model' ? 'assistant' : 'user', content: h.parts[0].text }))
+                    };
+                    break;
+
+                default:
+                    throw new Error("Invalid LLM model selected.");
+            }
+
+            // --- Make API call ---
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(body)
+                });
+                if (!response.ok) {
+                     const errorBody = await response.json();
+                     throw new Error(`API request failed: ${response.status} - ${errorBody.error?.message || JSON.stringify(errorBody)}`);
+                }
+                const result = await response.json();
+
+                // --- Parse response from selected model ---
+                let responseText = '';
+                if (selectedModel === 'gemini') {
+                    responseText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                } else if (selectedModel === 'openai') {
+                    responseText = result.choices?.[0]?.message?.content;
+                } else if (selectedModel === 'claude') {
+                    responseText = result.content?.[0]?.text;
+                }
+                
+                if (!responseText) throw new Error("Invalid or empty response from the AI model.");
+                return responseText;
+
+            } catch (error) {
+                console.error(`Error calling ${selectedModel} API:`, error);
+                throw error;
+            }
+        }
+        
+        // --- UI Helper Functions ---
+        function closeBrainstormModal() {
+             brainstormModal.classList.add('opacity-0');
+             modalContent.classList.add('scale-95');
+             setTimeout(() => brainstormModal.classList.add('hidden'), 300);
+        }
+
+        function parseLlmResponse(response) {
+            try {
+                const startIndex = response.indexOf('{');
+                const endIndex = response.lastIndexOf('}');
+                if (startIndex !== -1 && endIndex !== -1) {
+                    const jsonString = response.substring(startIndex, endIndex + 1);
+                    return JSON.parse(jsonString);
+                }
+                 // Handle cases where the AI might return a list of tasks directly
+                const arrayStartIndex = response.indexOf('[');
+                const arrayEndIndex = response.lastIndexOf(']');
+                 if (arrayStartIndex !== -1 && arrayEndIndex !== -1) {
+                     const jsonString = response.substring(arrayStartIndex, arrayEndIndex + 1);
+                     const tasks = JSON.parse(jsonString);
+                     if(Array.isArray(tasks)) return { tasks: tasks };
+                 }
+
+            } catch (e) {
+                console.error("Failed to parse JSON from LLM response:", e);
+            }
+            return { tool: 'final_answer', text: response };
+        }
+
+        function showTypingIndicator() {
+            const typingDiv = document.createElement('div');
+            typingDiv.id = 'typing-indicator';
+            typingDiv.className = 'message-bubble self-start bg-cl-dark-panel rounded-xl shadow-md p-4 max-w-xs flex items-center justify-center';
+            typingDiv.innerHTML = `<div class="dot-flashing"></div>`;
+            chatContainer.appendChild(typingDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function hideTypingIndicator() {
+            document.getElementById('typing-indicator')?.remove();
+        }
+
+        function addMessage(sender, text) {
+            const messageWrapper = document.createElement('div');
+            messageWrapper.className = 'flex flex-col mb-4';
+            
+            let bubble;
+            if(sender === 'user') {
+                bubble = `<div class="message-bubble self-end bg-cl-blue text-white rounded-xl shadow-md p-4 max-w-lg"><p class="font-semibold">You</p><p>${text.replace(/\n/g, '<br>')}</p></div>`;
+            } else if(sender === 'agent') {
+                 bubble = `<div class="message-bubble self-start bg-cl-dark-panel rounded-xl shadow-md p-4 max-w-lg"><p class="font-semibold text-cl-blue">Containerlab Agent</p><p class="text-gray-300">${text.replace(/\n/g, '<br>')}</p></div>`;
+            } else { // System messages
+                bubble = `<div class="self-center text-center text-xs text-gray-500 my-2 px-3 py-1 bg-gray-900 rounded-full break-all">${text}</div>`;
+            }
+            messageWrapper.innerHTML = bubble;
+            chatContainer.appendChild(messageWrapper);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+    });
+</script>
+</body>
+</html>
