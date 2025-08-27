@@ -795,17 +795,26 @@
             document.getElementById('typing-indicator')?.remove();
         }
 
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
         function addMessage(sender, text) {
             const messageWrapper = document.createElement('div');
             messageWrapper.className = 'flex flex-col mb-4';
             
             let bubble;
             if(sender === 'user') {
-                bubble = `<div class="message-bubble self-end bg-cl-blue text-white rounded-xl shadow-md p-4 max-w-lg"><p class="font-semibold">You</p><p>${text.replace(/\n/g, '<br>')}</p></div>`;
+                bubble = `<div class="message-bubble self-end bg-cl-blue text-white rounded-xl shadow-md p-4 max-w-lg"><p class="font-semibold">You</p><p>${escapeHtml(text).replace(/\n/g, '<br>')}</p></div>`;
             } else if(sender === 'agent') {
-                 bubble = `<div class="message-bubble self-start bg-cl-dark-panel rounded-xl shadow-md p-4 max-w-lg"><p class="font-semibold text-cl-blue">Containerlab Agent</p><p class="text-gray-300">${text.replace(/\n/g, '<br>')}</p></div>`;
+                 bubble = `<div class="message-bubble self-start bg-cl-dark-panel rounded-xl shadow-md p-4 max-w-lg"><p class="font-semibold text-cl-blue">Containerlab Agent</p><p class="text-gray-300">${escapeHtml(text).replace(/\n/g, '<br>')}</p></div>`;
             } else { // System messages
-                bubble = `<div class="self-center text-center text-xs text-gray-500 my-2 px-3 py-1 bg-gray-900 rounded-full break-all">${text}</div>`;
+                bubble = `<div class="self-center text-center text-xs text-gray-500 my-2 px-3 py-1 bg-gray-900 rounded-full break-all">${escapeHtml(text).replace(/\n/g, '<br>')}</div>`;
             }
             messageWrapper.innerHTML = bubble;
             chatContainer.appendChild(messageWrapper);
